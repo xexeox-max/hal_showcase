@@ -1,0 +1,44 @@
+services:
+  hal-relay:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    environment:
+      HAL_IDENTITY_SEED_FILE: /run/secrets/identity_seed
+      HAL_HOME_STACK_FILE: /run/secrets/home_stack
+      HAL_HOME_SECRET_FILE: /run/secrets/home_secret
+      HAL_DATA_DIR: /var/lib/hal-relay
+      HAL_PEER_PORT: "4001"
+      HAL_WSS_URL: ${HAL_WSS_URL:-}
+      RUST_LOG: info,HAL_DHT=info
+    ports:
+      - "4001:4001/tcp"
+    volumes:
+      - hal-relay-data:/var/lib/hal-relay
+      - ./secrets/identity_seed:/run/secrets/identity_seed:ro
+      - ./secrets/home_stack.json:/run/secrets/home_stack:ro
+      - ./secrets/home_secret.hex:/run/secrets/home_secret:ro
+    stop_grace_period: 30s
+
+  hal-ws-bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: ["/usr/local/bin/hal-ws-bridge"]
+    command: ["--listen", "0.0.0.0:8080", "--backend", "hal-relay:4001"]
+    restart: unless-stopped
+    init: true
+    depends_on:
+      - hal-relay
+    ports:
+      - "127.0.0.1:8080:8080/tcp"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  hal-relay-data:
